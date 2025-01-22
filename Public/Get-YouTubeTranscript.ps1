@@ -3,21 +3,18 @@
   #   Get the transcript of a YouTube video
   # .DESCRIPTION
   #   Get the transcript of a YouTube video
-  # .NOTES
-  #   Information or caveats about the function e.g. 'This function is not supported in Linux'
   # .LINK
   #   https://github.com/alainQtec/YouTubeSTT/blob/main/Public/Get-YouTubeTranscript.ps1
   # .EXAMPLE
   #   Get-YouTubeTranscript https://www.youtube.com/watch?v=t9b0YBDd0Ho -o transcript.json
-  [CmdletBinding()]
+  [CmdletBinding()][OutputType([string])]
   param (
     [Parameter(Mandatory = $true, Position = 0)]
     [ValidateScript({
-        if (Test-YouTubeUrl -Url $_) {
-          return $true
-        } else {
+        if (!($_ -match '^https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)$')) {
           throw [System.ArgumentException]::New('Please Provide a valid YouTube URL')
         }
+        return $true
       })
     ][Alias('u')]
     [string]$Url,
@@ -27,12 +24,14 @@
     [string]$OutFile
   )
 
-  begin {
-  }
-
   process {
+    $t = [YouTubeSTT]::GetTranscript($Url)
+    if ($PSBoundParameters.ContainsKey("Outfile")) {
+      $t | Out-File -FilePath $OutFile
+    }
   }
 
   end {
+    return $t
   }
 }
