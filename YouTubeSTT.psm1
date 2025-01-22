@@ -1,14 +1,34 @@
-﻿
-#!/usr/bin/env pwsh
+﻿#!/usr/bin/env pwsh
+
 #region    Classes
-enum sttOutFormat {
+enum SttOutFormat {
   PSObject
   Markdown
 }
 
 class YouTubeSTT {
-  static [string]$Summary_instructions
-  static [string] GetTranscript([string]$videoId, [bool]$IncludeTitle, [sttOutFormat]$OutputFormat, [bool]$IncludeDescription) {
+  static [string] $Summary_instructions
+  static [string] GetvideoId([string]$InputString) {
+    $pattern = '(?:https?:\/\/)?(?:www\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?(?:embed\/)?(?:v\/)?(?:shorts\/)?(?:\S*[^\w\-\s])?(?<id>[\w\-]{11})(?:\S*)?'
+    if ($InputString -match $pattern) {
+      $videoId = $matches['id']
+      return $videoId
+    } elseif ($InputString -match '^[\w\-]{11}$') {
+      return $InputString
+    } else {
+      throw [System.ArgumentException]::New('No valid YouTube video ID found in the string.')
+    }
+  }
+  static [string] GetTranscript([string]$videoId) {
+    return [YouTubeSTT]::GetTranscript($videoId, $true)
+  }
+  static [string] GetTranscript([string]$videoId, [bool]$IncludeTitle) {
+    return [YouTubeSTT]::GetTranscript($videoId, $IncludeTitle, [SttOutFormat]::PSObject)
+  }
+  static [string] GetTranscript([string]$videoId, [bool]$IncludeTitle, [SttOutFormat]$OutputFormat) {
+    return [YouTubeSTT]::GetTranscript($videoId, $IncludeTitle, $OutputFormat, $false)
+  }
+  static [string] GetTranscript([string]$videoId, [bool]$IncludeTitle, [SttOutFormat]$OutputFormat, [bool]$IncludeDescription) {
     $vidId = [YouTubeSTT]::GetvideoId($videoId)
     $langOptLinks = [YouTubeSTT]::GetLangOptionsWithLink($vidId)
     if ($langOptLinks.Count -eq 0) {
@@ -49,20 +69,6 @@ class YouTubeSTT {
       }
     } else {
       Write-Host 'No valid link found for the transcript.'
-      return $null
-    }
-  }
-  static [string] GetvideoId([string]$InputString) {
-    $pattern = '(?:https?:\/\/)?(?:www\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?(?:embed\/)?(?:v\/)?(?:shorts\/)?(?:\S*[^\w\-\s])?(?<id>[\w\-]{11})(?:\S*)?'
-    if ($InputString -match $pattern) {
-      $videoId = $matches['id']
-      Write-Verbose "Valid YouTube video ID found: $videoId"
-      return $videoId
-    } elseif ($InputString -match '^[\w\-]{11}$') {
-      Write-Verbose "Valid YouTube video ID format: $InputString"
-      return $InputString
-    } else {
-      Write-Verbose 'No valid YouTube video ID found in the string.'
       return $null
     }
   }
