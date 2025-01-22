@@ -30,7 +30,7 @@
   Copyright             = 'Copyright © 2025 Alain Herve. All rights reserved.'
 
   # Description of the functionality provided by this module
-  Description           = 'A collection of script files by Alain Herve'
+  Description           = 'A module to transcribe and extract meaningful data from YouTube videos'
 
   # Minimum version of the PowerShell engine required by this module
   PowerShellVersion     = '7.4'
