@@ -7,6 +7,7 @@
   }
 
   process {
+    throw [System.NotImplementedException]::new("Function Not Implemented yet. (WIP)")
   }
 
   end {
