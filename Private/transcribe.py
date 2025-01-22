@@ -1,13 +1,9 @@
-﻿import argparse
-from doctest import Example
-import os
+﻿import os
 import time
+import argparse
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api.formatters import TextFormatter
 from youtube_transcript_api._errors import NoTranscriptFound, VideoUnavailable
-
-# Example:
-# python Private/transcribe.py --video_id dQw4w9WgXcQ
 
 # --- Argument Parsing ---
 parser = argparse.ArgumentParser(description='Audio transcription with Socket Output')
@@ -25,12 +21,11 @@ def main():
     try:
         transcript = YouTubeTranscriptApi.get_transcript(args.video_id)
         formatter = TextFormatter()
-        formatted_transcript = formatter.format_transcript(transcript)
-
+        json_formatted = formatter.format_transcript(transcript, indent=2)
         with open(args.outfile, 'w', encoding='utf-8') as outfile:
-            outfile.write(formatted_transcript)
+            outfile.write(json_formatted)
 
-        print(f"Transcript written to {args.outfile}")
+        # print(f"Transcript written to {args.outfile}")
 
     except VideoUnavailable:
         print(f"Error: Video with ID '{args.video_id}' is unavailable.")
