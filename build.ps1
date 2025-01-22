@@ -1,7 +1,7 @@
 ﻿
 #!/usr/bin/env pwsh
 # .SYNOPSIS
-#   YouTubeSTT buildScript v0.1.0
+#   YouTubeSTT buildScript v0.1.1
 # .DESCRIPTION
 #   A custom build script for the module YouTubeSTT
 # .LINK

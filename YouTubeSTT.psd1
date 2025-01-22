@@ -12,7 +12,7 @@
   RootModule            = 'YouTubeSTT.psm1'
 
   # Version number of this module.
-  ModuleVersion         = '0.1.0'
+  ModuleVersion         = '0.1.1'
 
   # Supported PSEditions
   # CompatiblePSEditions = @()
@@ -98,7 +98,7 @@
       IconUri      = 'https://github.com/user-attachments/assets/1220c30e-a309-43c3-9a80-1948dae30e09'
       ReleaseNotes = '# Release Notes
 
-- Version_0.1.0
+- Version_0.1.1
 - Functions ...
 - Optimizations
 '
