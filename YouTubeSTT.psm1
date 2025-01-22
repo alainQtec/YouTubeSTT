@@ -1,4 +1,10 @@
 ﻿#!/usr/bin/env pwsh
+using namespace System.IO
+using namespace System.Management.Automation
+
+#Requires -Modules cliHelper.core, pipEnv
+#Requires -Psedition Core
+
 
 #region    Classes
 enum SttOutFormat {
@@ -6,7 +12,17 @@ enum SttOutFormat {
   Markdown
 }
 
+
+
+# .SYNOPSIS
+#   A short one-line action-based description, e.g. 'Tests if a function is valid'
+# .EXAMPLE
+#   [YouTubeSTT]::GetTranscript("https://youtu.be/t9b0YBDd0Ho")
 class YouTubeSTT {
+  static [hashtable]$status = [hashtable]::Synchronized(@{
+      HasConfig = [YouTubeSTT]::HasConfig()
+    }
+  )
   static [string] $Summary_instructions
   static [string] GetvideoId([string]$InputString) {
     $pattern = '(?:https?:\/\/)?(?:www\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?(?:embed\/)?(?:v\/)?(?:shorts\/)?(?:\S*[^\w\-\s])?(?<id>[\w\-]{11})(?:\S*)?'
@@ -29,15 +45,10 @@ class YouTubeSTT {
     return [YouTubeSTT]::GetTranscript($videoId, $IncludeTitle, $OutputFormat, $false)
   }
   static [string] GetTranscript([string]$videoId, [bool]$IncludeTitle, [SttOutFormat]$OutputFormat, [bool]$IncludeDescription) {
-    $vidId = [YouTubeSTT]::GetvideoId($videoId)
-    $langOptLinks = [YouTubeSTT]::GetLangOptionsWithLink($vidId)
-    if ($langOptLinks.Count -eq 0) {
-      Write-Host 'No transcripts available for this video.'
-      return $null
-    }
-
-    $link = $langOptLinks[0].link
-    if ($null -ne $link) {
+    $vidId = [YouTubeSTT]::GetvideoId($videoId);
+    $langOptLinks = [YouTubeSTT]::GetLangOptionsWithLink($vidId); $has_transcript_link = !($langOptLinks.Count -eq 0 -or $null -eq $langOptLinks[0].link)
+    if ($has_transcript_link) {
+      $link = $langOptLinks[0].link
       # return the video info
       # title, description, transcript
       $markdown = "# Video Transcript`n"
@@ -67,14 +78,18 @@ class YouTubeSTT {
       } else {
         return $videoinfo
       }
-    } else {
-      Write-Host 'No valid link found for the transcript.'
-      return $null
     }
+    # Offline transcribe
+    [void][YouTubeSTT]::ResolveRequirements(); $_c = [YouTubeSTT].config; $tmpfile = [IO.Path]::GetTempFileName()
+    $_t = [IO.Path]::Combine(($_c.backgroundScript | Split-Path), "transcribe.py"); $dir = $_c.workingDirectory
+    $Process = Start-Process -FilePath "python" -ArgumentList "$_t --video_id `"$vidId`" --outfile `"$tmpfile`" --working-directory `"$dir`"" -WorkingDirectory $dir -PassThru -NoNewWindow;
+    $Process.WaitForExit(); $process.Kill(); $Process.Dispose()
+    $res = [IO.File]::ReadAllText($tmpfile); [IO.File]::Delete($tmpfile)
+    return $res
   }
   static [string] GetVideoPageHtml([string]$videoId) {
     try {
-      $response = Invoke-WebRequest -Uri "https://www.youtube.com/watch?v=$videoId"
+      $response = Invoke-WebRequest -Uri "https://www.youtube.com/watch?v=$videoId" -Verbose:$false
       $html = $response.Content
       # Check if the HTML content contains the video URL: <meta property="og:url" content="https://www.youtube.com/watch?v=GikIJpUv6oo">
       if ($html -match 'og:url') {
@@ -159,13 +174,46 @@ class YouTubeSTT {
       return $null
     }
   }
+  static [bool] ResolveRequirements() {
+    $_c = [YouTubeSTT].config; $req = $_c.requirementsfile; $res = [IO.File]::Exists($req);
+    if (!$res) { throw "YouTubeSTT failed to resolve pip requirements. From file: '$req'." }
+    Write-Console "Found file @$(Invoke-PathShortener $req)" -f LemonChiffon;
+    if (![YouTubeSTT]::status.HasConfig) { throw [InvalidOperationException]::new("YouTubeSTT config found.") };
+    if ($_c.env.State -eq "Inactive") { $_c.env.Activate() }
+    Write-Console "(YouTubeSTT) " -f SlateBlue -NoNewLine; Write-Console "၊▹ Resolve pip requirements ... " -f LemonChiffon -NoNewLine -Animate
+    pip install -r $req
+    Write-Console "Done" -f LimeGreen
+    return $res
+  }
+  static [bool] HasConfig() {
+    if ($null -eq [YouTubeSTT].config) { [YouTubeSTT].PsObject.Properties.Add([PSScriptproperty]::New("config", { return [YouTubeSTT]::LoadConfig() }, { throw [SetValueException]::new("config can only be imported or edited") })) }
+    return $null -ne [YouTubeSTT].config
+  }
+  static [PsObject] LoadConfig() {
+    return [YouTubeSTT]::LoadConfig((Resolve-Path .).Path)
+  }
+  static [PsObject] LoadConfig([string]$current_path) {
+    # .DESCRIPTION
+    #   Load the configuration from json or toml file
+    $module_path = (Get-Module YouTubeSTT -ListAvailable -Verbose:$false).ModuleBase
+    # default config values
+    $c = @{
+      workingDirectory = $current_path
+      requirementsfile = [IO.Path]::Combine($module_path, "Private", "requirements.txt")
+      backgroundScript = [IO.Path]::Combine($module_path, "Private", "transcribe.py")
+      outFile          = [IO.Path]::Combine($current_path, "$(Get-Date -Format 'yyyyMMddHHmmss')_output.json")
+    } -as "PsRecord"
+    $c.PsObject.Properties.Add([PSScriptproperty]::New("env", { return [YouTubeSTT].config.workingDirectory | New-pipEnv }, { throw [SetValueException]::new("env is read-only") }))
+    $c.PsObject.Properties.Add([PSScriptproperty]::New("modulePath", [scriptblock]::Create("return `"$module_path`""), { throw [SetValueException]::new("modulePath is read-only") }))
+    return $c
+  }
   static [string] GetRawTranscript([string]$link) {
     if (!$link.StartsWith('https://www.youtube.com')) {
       $uri = ('https://www.youtube.com{0}' -f $link)
     } else {
       $uri = $link
     }
-    $transcriptPageResponse = Invoke-WebRequest -Uri $uri
+    $transcriptPageResponse = Invoke-WebRequest -Uri $uri -Verbose:$false
     [xml]$xmlDoc = [xml](New-Object System.Xml.XmlDocument)
     $xmlDoc.LoadXml($transcriptPageResponse.Content)
     $textNodes = $xmlDoc.documentElement.ChildNodes
